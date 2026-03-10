@@ -5,8 +5,8 @@ from flask_bcrypt import Bcrypt
 
 app = Flask(__name__)
 
-# Database configuration (works locally and on Render)
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(BASE_DIR, "stockflow.db")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SECRET_KEY"] = "secret"
@@ -14,10 +14,7 @@ app.config["SECRET_KEY"] = "secret"
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 
-
-# -------------------
-# Models
-# -------------------
+# ---------------- MODELS ---------------- #
 
 class Organization(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -41,15 +38,20 @@ class Product(db.Model):
 
     quantity = db.Column(db.Integer)
 
-    cost_price = db.Column(db.Float)
-    selling_price = db.Column(db.Float)
-
     low_stock_threshold = db.Column(db.Integer, default=5)
 
 
-# -------------------
-# Routes
-# -------------------
+class Sale(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+
+    product_id = db.Column(db.Integer)
+
+    product_name = db.Column(db.String(120))
+
+    quantity_sold = db.Column(db.Integer)
+
+
+# ---------------- ROUTES ---------------- #
 
 @app.route("/")
 def home():
@@ -57,7 +59,7 @@ def home():
 
 
 # Signup
-@app.route("/signup", methods=["GET", "POST"])
+@app.route("/signup", methods=["GET","POST"])
 def signup():
 
     if request.method == "POST":
@@ -88,7 +90,7 @@ def signup():
 
 
 # Login
-@app.route("/login", methods=["GET", "POST"])
+@app.route("/login", methods=["GET","POST"])
 def login():
 
     if request.method == "POST":
@@ -98,12 +100,12 @@ def login():
 
         user = User.query.filter_by(email=email).first()
 
-        if user and bcrypt.check_password_hash(user.password, password):
+        if user and bcrypt.check_password_hash(user.password,password):
 
             return redirect(f"/dashboard/{user.organization_id}")
 
         else:
-            return "Invalid Email or Password"
+            return "Invalid Login"
 
     return render_template("login.html")
 
@@ -114,6 +116,8 @@ def dashboard(org_id):
 
     products = Product.query.filter_by(organization_id=org_id).all()
 
+    sales = Sale.query.all()
+
     total_products = len(products)
 
     total_inventory = sum(p.quantity for p in products)
@@ -122,15 +126,16 @@ def dashboard(org_id):
 
     return render_template(
         "dashboard.html",
+        products=products,
+        sales=sales,
         total_products=total_products,
         total_inventory=total_inventory,
-        products=products,
         low_stock=low_stock,
         org_id=org_id
     )
 
 
-# Add product
+# Add Product
 @app.route("/add_product/<org_id>", methods=["POST"])
 def add_product(org_id):
 
@@ -151,27 +156,64 @@ def add_product(org_id):
     return redirect(f"/dashboard/{org_id}")
 
 
-# Sell product (reduce quantity)
+# Sell Product
 @app.route("/sell/<int:id>/<org_id>", methods=["POST"])
 def sell_product(id, org_id):
 
     product = Product.query.get(id)
 
-    sold_qty = int(request.form["sold_qty"])
+    sold_qty = int(request.form.get("sold_qty",0))
 
-    if product.quantity >= sold_qty:
+    if product:
+
         product.quantity -= sold_qty
+
+        sale = Sale(
+            product_id=id,
+            product_name=product.name,
+            quantity_sold=sold_qty
+        )
+
+        db.session.add(sale)
+
+        # AUTO DELETE PRODUCT
+        if product.quantity <= 0:
+            db.session.delete(product)
+
+        db.session.commit()
+
+    return redirect(f"/dashboard/{org_id}")
+
+
+# Edit Page
+@app.route("/edit/<int:id>/<org_id>")
+def edit_product(id, org_id):
+
+    product = Product.query.get_or_404(id)
+
+    return render_template("edit_product.html", product=product, org_id=org_id)
+
+
+# Update Product
+@app.route("/update/<int:id>/<org_id>", methods=["POST"])
+def update_product(id, org_id):
+
+    product = Product.query.get_or_404(id)
+
+    product.name = request.form["name"]
+    product.sku = request.form["sku"]
+    product.quantity = int(request.form["quantity"])
 
     db.session.commit()
 
     return redirect(f"/dashboard/{org_id}")
 
 
-# Delete product
+# Delete Product
 @app.route("/delete/<int:id>/<org_id>")
 def delete_product(id, org_id):
 
-    product = Product.query.get(id)
+    product = Product.query.get_or_404(id)
 
     db.session.delete(product)
     db.session.commit()
@@ -179,13 +221,11 @@ def delete_product(id, org_id):
     return redirect(f"/dashboard/{org_id}")
 
 
-# -------------------
-# Run app
-# -------------------
+# ---------------- RUN APP ---------------- #
 
 if __name__ == "__main__":
 
     with app.app_context():
         db.create_all()
 
-    app.run(debug=True, use_reloader=False)
+    app.run(debug=True)
