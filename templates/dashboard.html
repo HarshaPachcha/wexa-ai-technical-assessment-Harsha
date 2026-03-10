@@ -21,45 +21,27 @@
 <div class="row mb-4">
 
 <div class="col-md-4">
-
 <div class="card text-white bg-primary p-3">
-
 <h6>Total Products</h6>
-
 <h2>{{total_products}}</h2>
-
 </div>
-
 </div>
-
 
 <div class="col-md-4">
-
 <div class="card text-white bg-success p-3">
-
 <h6>Total Inventory</h6>
-
 <h2>{{total_inventory}}</h2>
-
 </div>
-
 </div>
-
 
 <div class="col-md-4">
-
 <div class="card text-white bg-danger p-3">
-
-<h6>Low Stock Items</h6>
-
+<h6>Low Stock</h6>
 <h2>{{low_stock|length}}</h2>
-
+</div>
 </div>
 
 </div>
-
-</div>
-
 
 
 <h4>Add Product</h4>
@@ -85,7 +67,6 @@
 </form>
 
 
-
 <h4>Products</h4>
 
 <table class="table table-striped">
@@ -98,6 +79,7 @@
 <th>SKU</th>
 <th>Quantity</th>
 <th>Sell</th>
+<th>Edit</th>
 <th>Delete</th>
 
 </tr>
@@ -111,11 +93,8 @@
 <tr>
 
 <td>{{p.name}}</td>
-
 <td>{{p.sku}}</td>
-
 <td>{{p.quantity}}</td>
-
 
 <td>
 
@@ -129,15 +108,12 @@
 
 </td>
 
+<td>
+<a href="/edit/{{p.id}}/{{org_id}}" class="btn btn-info btn-sm">Edit</a>
+</td>
 
 <td>
-
-<a href="/delete/{{p.id}}/{{org_id}}" class="btn btn-danger btn-sm">
-
-Delete
-
-</a>
-
+<a href="/delete/{{p.id}}/{{org_id}}" class="btn btn-danger btn-sm">Delete</a>
 </td>
 
 </tr>
@@ -149,30 +125,6 @@ Delete
 </table>
 
 
-
-<div class="row mt-5">
-
-<div class="col-md-6">
-
-<h4>Inventory Distribution</h4>
-
-<canvas id="inventoryChart"></canvas>
-
-</div>
-
-
-<div class="col-md-6">
-
-<h4>Stock Health</h4>
-
-<canvas id="stockChart"></canvas>
-
-</div>
-
-</div>
-
-
-
 <h4 class="mt-4">Low Stock Items</h4>
 
 <ul class="list-group">
@@ -180,89 +132,98 @@ Delete
 {% for p in low_stock %}
 
 <li class="list-group-item list-group-item-danger">
-
 {{p.name}} - Quantity: {{p.quantity}}
-
 </li>
 
 {% endfor %}
 
 </ul>
 
+
+<h4 class="mt-5">Sales History</h4>
+
+<table class="table table-bordered">
+
+<tr>
+<th>Product</th>
+<th>Quantity Sold</th>
+</tr>
+
+{% for s in sales %}
+
+<tr>
+<td>{{s.product_name}}</td>
+<td>{{s.quantity_sold}}</td>
+</tr>
+
+{% endfor %}
+
+</table>
+
+
+<div class="row mt-5">
+
+<div class="col-md-6">
+<h4>Inventory Distribution</h4>
+<canvas id="inventoryChart"></canvas>
 </div>
 
+<div class="col-md-6">
+<h4>Sales Chart</h4>
+<canvas id="salesChart"></canvas>
+</div>
+
+</div>
 
 
 <script>
 
 const productNames = [
-
 {% for p in products %}
-
 "{{p.name}}",
-
 {% endfor %}
-
 ];
-
 
 const productQty = [
-
 {% for p in products %}
-
 {{p.quantity}},
-
 {% endfor %}
-
 ];
 
-
 new Chart(document.getElementById("inventoryChart"), {
-
 type: "bar",
-
 data: {
-
 labels: productNames,
-
 datasets: [{
-
 label: "Stock Quantity",
-
 data: productQty,
-
 backgroundColor: "#4f8cff"
-
 }]
-
 }
-
 });
 
 
-const lowStock = {{low_stock|length}};
+const soldProducts = [
+{% for s in sales %}
+"{{s.product_name}}",
+{% endfor %}
+];
 
-const healthyStock = {{products|length}} - lowStock;
+const soldQty = [
+{% for s in sales %}
+{{s.quantity_sold}},
+{% endfor %}
+];
 
-
-new Chart(document.getElementById("stockChart"), {
-
+new Chart(document.getElementById("salesChart"), {
 type: "pie",
-
 data: {
-
-labels: ["Low Stock","Healthy Stock"],
-
+labels: soldProducts,
 datasets: [{
-
-data: [lowStock, healthyStock],
-
-backgroundColor: ["#ff4d4d","#4f8cff"]
-
+data: soldQty,
+backgroundColor: ["#ff4d4d","#22c55e","#3b82f6","#f59e0b"]
 }]
-
 }
-
 });
 
 </script>
